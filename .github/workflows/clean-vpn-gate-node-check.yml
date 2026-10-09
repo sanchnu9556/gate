@@ -11,7 +11,7 @@ jobs:
       GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       REPO: sanchnu9556/gate
       WF_ID_VPNCHECK: 377578548
-      WF_ID_SELF: ${{ github.workflow_id }}
+      WF_ID_SELF: 379278140
     steps:
       - name: VPN保留最新1条，Clean自身清空全部历史run
         run: |
