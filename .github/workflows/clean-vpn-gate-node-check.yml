@@ -13,45 +13,42 @@ jobs:
       WF_ID_VPNCHECK: 377578548
       WF_ID_SELF: 379278140
     steps:
-      - name: VPN保留最新1条，Clean自身清空全部历史run
+      - name: Clean old workflow runs
         run: |
           set -e
+          API_HEADER="-H X-GitHub-Api-Version:2022-11-28"
 
-          # ========== 处理 VPN Gate Node Check：保留最新1条 ==========
-          echo "==================== 处理 VPN Gate Node Check ID: $WF_ID_VPNCHECK ===================="
-          WORKFLOW_ID="$WF_ID_VPNCHECK"
-          RUN_IDS=$(gh api --paginate "/repos/$REPO/actions/workflows/$WORKFLOW_ID/runs" | jq -r '.workflow_runs[] | select(.conclusion != null) | .id')
-          if [ -n "$RUN_IDS" ]; then
-            RUN_ARR=($RUN_IDS)
-            TOTAL=${#RUN_ARR[@]}
-            echo ">> VPN工作流共 $TOTAL 条已完成记录"
-            if [ "$TOTAL" -gt 1 ]; then
-              for ((i=1;i<TOTAL;i++)); do
-                rid=${RUN_ARR[$i]}
-                echo "删除VPN旧Run: $rid"
-                gh api -X DELETE "/repos/$REPO/actions/runs/$rid" || true
-                sleep 0.3
-              done
-            fi
-          else
-            echo ">> VPN工作流无已完成记录"
-          fi
-
-          # ========== 处理 Clean 自身：全部删除已完成历史run ==========
-          echo -e "\n==================== 处理 Clean VPN Gate Node Check Runs ID: $WF_ID_SELF ===================="
-          WORKFLOW_ID="$WF_ID_SELF"
-          RUN_IDS=$(gh api --paginate "/repos/$REPO/actions/workflows/$WORKFLOW_ID/runs" | jq -r '.workflow_runs[] | select(.conclusion != null) | .id')
-          if [ -n "$RUN_IDS" ]; then
-            RUN_ARR=($RUN_IDS)
-            TOTAL=${#RUN_ARR[@]}
-            echo ">> Clean工作流共 $TOTAL 条已完成记录，准备全部删除"
-            for rid in "${RUN_ARR[@]}"; do
-              echo "删除Clean历史Run: $rid"
-              gh api -X DELETE "/repos/$REPO/actions/runs/$rid" || true
+          # ========== VPN Gate Node Check：保留最新1条，其余删除 ==========
+          echo "===== Process VPN workflow id: $WF_ID_VPNCHECK ====="
+          VPN_RAW=$(gh api $API_HEADER --paginate "/repos/$REPO/actions/workflows/$WF_ID_VPNCHECK/runs")
+          # 按创建时间降序，只筛选已完成的，输出id列表
+          VPN_RUNS=$(echo "$VPN_RAW" | jq -r '.workflow_runs | map(select(.conclusion != null)) | sort_by(-(.created_at | fromdateiso8601)) | .[].id')
+          VPN_ARRAY=($VPN_RUNS)
+          VPN_COUNT=${#VPN_ARRAY[@]}
+          echo "VPN total completed runs: $VPN_COUNT"
+          if (( VPN_COUNT > 1 )); then
+            # 跳过索引0（最新一条），删除后面全部
+            for ((i=1; i<VPN_COUNT; i++)); do
+              rid=${VPN_ARRAY[$i]}
+              echo "Delete VPN old run: $rid"
+              gh api $API_HEADER --method DELETE "/repos/$REPO/actions/runs/$rid" || true
               sleep 0.3
             done
           else
-            echo ">> Clean工作流无已完成历史记录"
+            echo "VPN runs <=1, skip delete"
           fi
 
-          echo -e "\n✅ 清理流程执行完成"
+          # ========== Clean自身工作流：全部删除已完成run ==========
+          echo -e "\n===== Process Clean workflow id: $WF_ID_SELF ====="
+          CLEAN_RAW=$(gh api $API_HEADER --paginate "/repos/$REPO/actions/workflows/$WF_ID_SELF/runs")
+          CLEAN_RUNS=$(echo "$CLEAN_RAW" | jq -r '.workflow_runs | map(select(.conclusion != null)) | sort_by(-(.created_at | fromdateiso8601)) | .[].id')
+          CLEAN_ARRAY=($CLEAN_RUNS)
+          CLEAN_COUNT=${#CLEAN_ARRAY[@]}
+          echo "Clean total completed runs: $CLEAN_COUNT"
+          for rid in "${CLEAN_ARRAY[@]}"; do
+            echo "Delete Clean history run: $rid"
+            gh api $API_HEADER --method DELETE "/repos/$REPO/actions/runs/$rid" || true
+            sleep 0.3
+          done
+
+          echo -e "\n✅ Clean task finished"
