@@ -7,16 +7,16 @@ on:
 jobs:
   clean:
     runs-on: ubuntu-latest
-    env:
-      # 关键：GH_TOKEN 必须是这个变量名给gh cli识别
-      GH_TOKEN: ${{ secrets.PAT_TOKEN }}
-      REPO: sanchnu9556/gate
-      WF_ID_VPNCHECK: 377578548
-      WF_ID_SELF: 379278140
     steps:
       - name: Clean old workflow runs
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          REPO: sanchnu9556/gate
+          WF_ID_VPNCHECK: 377578548
+          WF_ID_SELF: 379278140
         run: |
           set -e
+          export GH_TOKEN="${GH_TOKEN}"
           API_HEADER="-H X-GitHub-Api-Version:2022-11-28"
 
           # ========== VPN Gate Node Check：保留最新1条，其余删除 ==========
