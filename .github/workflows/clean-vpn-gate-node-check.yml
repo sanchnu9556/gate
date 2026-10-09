@@ -8,6 +8,7 @@ jobs:
   clean:
     runs-on: ubuntu-latest
     env:
+      # 关键：GH_TOKEN 必须是这个变量名给gh cli识别
       GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       REPO: sanchnu9556/gate
       WF_ID_VPNCHECK: 377578548
